@@ -19,11 +19,12 @@ class Delimiter(enum.Enum):
 
 class SerialProtocol(asyncio.Protocol):
     def __init__(self):
-        self.ready_event = asyncio.Event()
-        self.rBuffer = asyncio.Queue()
-        self.transport = None
-        self.timeout = 10.0
-
+        self._ready_event = asyncio.Event()
+        self._rbuffer = asyncio.Queue()
+        self._transport = None
+        self._timeout = 10.0
+        self._delimiter = Delimiter.CRLF.value
+        self._partial_data = ''
 
     def connection_lost(self, exc) -> None:
         logging.error("Connection: lost.")
@@ -33,65 +34,73 @@ class SerialProtocol(asyncio.Protocol):
         """called when  the serial connection is established."""
         self.transport = transport
         logging.debug("Connection: connected.")
-        self.ready_event.set()
+        self._ready_event.set()
 
-    def data_received(self, data) -> None:
-        """Handle incoming data."""
+    def data_received(self, data: bytes) -> None:
+        """Handle incoming data, collect until delimiter is received."""
         try:
+            self._partial_data += data
+            
+            while self._delimiter in self._partial_data:
+                line, self._partial_data = self._partial_data.split(self._delimiter, 1)
+                
+                try:
+                    line_decoded = line.decode('utf-8').strip()
+                    
+                    if line_decoded:
+                        self._rbuffer.put_nowait(line_decoded)
+                        logging.debug(f"<< Receiving full line: {line_decoded}")
 
-            print("MACSKA  ", data)
-            data = data.decode('utf-8').rstrip('\r\n')
-            if data:
-                # logging.debug(f"<< Receiving data: {data}")
-                self.rBuffer.put_nowait(data)
+                except UnicodeDecodeError as e:
+                    logging.error(f"Failed to decode received data: {e}")
+                    
+        except Exception as e:
+            logging.error(f"Error while processing received data: {e}")
                 
         except UnicodeDecodeError as e:
             logging.error(f"Failed to decode data: {e}")
-            return None
 
     async def write_command(self, command: bytes, delimiter: Delimiter = Delimiter.CRLF) -> None:
         """Write command to the instrument as a byte string."""
         if not isinstance(command, (bytes)):
             logging.error("Data must be of type bytes")
             return None
-        
+                
         if self.transport is None or self.transport.is_closing():
             logging.warning("Connection: lost.")
             return None
         
         try:
-            logging.debug(f">> Sending data: {command} + {delimiter.value}")
             await self.transport.write(command + delimiter.value)
+            logging.debug(f">> Sending data: {command} + {delimiter.value}")
+        
         except Exception as e:
             logging.error(f"Error while sending data: {e}")
             return None
 
-    async def read_line(self) -> tuple[str, Union[list[str], None]]:
+    async def read_until_delimiter(self) -> tuple[str, Union[list[str], None]]:
         """Read a line from the buffer with a timeout."""
         if self.transport is None or self.transport.is_closing():
             logging.error("Connection: lost.")
             return 'ER100', None
 
         try:
-            line = await asyncio.wait_for(self.rBuffer.get(), timeout=self.timeout)
+            line = await asyncio.wait_for(self._rbuffer.get(), timeout=self._timeout)
 
-            if line is None:
-                self.transport.close()
-                logging.error("Connection error: No response received.")
-                return 'ER101', None
-
-            parts = line.split(',', 1)
-            if len(parts) > 1:
-                return parts[0], parts[1].split(',')
-            else:
+            if line:
+                parts = line.split(',', 1)
+                if len(parts) > 1:
+                    return parts[0], parts[1].split(',')
                 return parts[0], None
 
         except asyncio.TimeoutError:
+            logging.error("Timeout while waiting for response.")
             if self.transport:
                 self.transport.close()
             return 'ER101', None
         
         except Exception as e:
+            logging.error(f"Unexpected error while reading: {e}")
             if self.transport:
                 self.transport.close()
             return 'ER99', None
@@ -120,7 +129,7 @@ class Instrument:
     async def Read(protocol: SerialProtocol) -> ReadData:
         """Read response and check for errors."""
 
-        err, response = await protocol.read_line()
+        err, response = await protocol.read_until_delimiter()
         code, info = Instrument.check_error_code(err)
 
         if code != 0:
@@ -143,7 +152,7 @@ class Instrument:
                     )
                     cls.active_connection = _protocol
                     try:
-                        await _protocol.ready_event.wait()
+                        await _protocol._ready_event.wait()
                         return await func(_protocol, *args, **kwargs)
                     finally:
                         _transport.close()
