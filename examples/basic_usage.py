@@ -85,8 +85,6 @@ async def _measure_read_store(protocol):
     # f.to_csv(f"measurement_data_{_ct}.csv", index=False)
 
 
-
-
 def run_program(program, error_handler):
     try:
         asyncio.run(program())
