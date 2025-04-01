@@ -15,12 +15,15 @@ class Delimiter(enum.Enum):
     CR = b'\r'
     LF = b'\n'
 
+        
+
 class SerialProtocol(asyncio.Protocol):
     def __init__(self):
         self.ready_event = asyncio.Event()
         self.rBuffer = asyncio.Queue()
         self.transport = None
         self.timeout = 10.0
+
 
     def connection_lost(self, exc) -> None:
         logging.error("Connection: lost.")
