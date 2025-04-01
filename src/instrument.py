@@ -2,11 +2,11 @@ import asyncio
 import functools
 import logging
 import enum
-from typing import Union
+from typing import Union, Optional
 from dataclasses import dataclass
 import json
+import serial_asyncio
 
-import serial_asyncio 
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -38,16 +38,18 @@ class SerialProtocol(asyncio.Protocol):
     def data_received(self, data) -> None:
         """Handle incoming data."""
         try:
+
+            print("MACSKA  ", data)
             data = data.decode('utf-8').rstrip('\r\n')
             if data:
-                logging.debug(f"<< Receiving data: {data}")
+                # logging.debug(f"<< Receiving data: {data}")
                 self.rBuffer.put_nowait(data)
                 
         except UnicodeDecodeError as e:
             logging.error(f"Failed to decode data: {e}")
             return None
 
-    def write_command(self, command: bytes, delimiter: Delimiter = Delimiter.CRLF) -> None:
+    async def write_command(self, command: bytes, delimiter: Delimiter = Delimiter.CRLF) -> None:
         """Write command to the instrument as a byte string."""
         if not isinstance(command, (bytes)):
             logging.error("Data must be of type bytes")
@@ -59,12 +61,12 @@ class SerialProtocol(asyncio.Protocol):
         
         try:
             logging.debug(f">> Sending data: {command} + {delimiter.value}")
-            self.transport.write(command + delimiter.value)
+            await self.transport.write(command + delimiter.value)
         except Exception as e:
             logging.error(f"Error while sending data: {e}")
             return None
 
-    async def read_line(self) -> tuple[str, Union[str, None]]:
+    async def read_line(self) -> tuple[str, Union[list[str], None]]:
         """Read a line from the buffer with a timeout."""
         if self.transport is None or self.transport.is_closing():
             logging.error("Connection: lost.")
@@ -80,7 +82,7 @@ class SerialProtocol(asyncio.Protocol):
 
             parts = line.split(',', 1)
             if len(parts) > 1:
-                return parts[0], parts[1]
+                return parts[0], parts[1].split(',')
             else:
                 return parts[0], None
 
@@ -97,16 +99,23 @@ class SerialProtocol(asyncio.Protocol):
 
 class Instrument:
 
+    active_connection: Optional[asyncio.Protocol] = None
+
     @dataclass
     class ReadData:
         response: str
         code: int
         info: str
     
+    COLORIMETRIC_KEYS = [
+        "Le", "Lv", "X", "Y", "Z", "x", "y", "u'", "v'", "T", "delta uv", "lambda d", 
+        "Pe","X10", "Y10", "Z10", "x10", "y10", "u'10", "v'10", "T10", "delta uv10", "lambda d10", "Pe10"
+    ]
+    
     async def Write(protocol: SerialProtocol, command: bytes):
         """Write to the instrument."""
-
-        protocol.write_command(command)
+        if protocol and command:
+            await protocol.write_command(command)
 
     async def Read(protocol: SerialProtocol) -> ReadData:
         """Read response and check for errors."""
@@ -120,21 +129,27 @@ class Instrument:
 
         return Instrument.ReadData(response, code, info)
 
-    def connection(port: str ="COM4", baudrate: int=9600, protocol: asyncio.Protocol = SerialProtocol):
-        """Decorator to handle serial connection."""
+    @classmethod
+    def connection(cls, port: str = "COM4", baudrate: int = 9600, protocol: asyncio.Protocol = SerialProtocol):
+        """Decorator to handle serial connection. Reuses active connection if available."""
 
         def decorator(func):
             @functools.wraps(func)
             async def wrapper(*args, **kwargs):
-                loop = asyncio.get_running_loop()
-                _transport, _protocol = await serial_asyncio.create_serial_connection(
-                    loop, protocol, port, baudrate
-                )
-                try:
-                    await _protocol.ready_event.wait()
-                    return await func(_protocol, *args, **kwargs)
-                finally:
-                    _transport.close()
+                if cls.active_connection is None:
+                    loop = asyncio.get_running_loop()
+                    _transport, _protocol = await serial_asyncio.create_serial_connection(
+                        loop, protocol, port, baudrate
+                    )
+                    cls.active_connection = _protocol
+                    try:
+                        await _protocol.ready_event.wait()
+                        return await func(_protocol, *args, **kwargs)
+                    finally:
+                        _transport.close()
+                        cls.active_connection = None
+                else:
+                    return await func(cls.active_connection, *args, **kwargs)
 
             return wrapper
         return decorator

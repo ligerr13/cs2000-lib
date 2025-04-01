@@ -5,7 +5,7 @@ PORT = 'COM4'
 BAUDRATE = 9600
 
 
-@Instrument.connection(port=PORT, baudrate=BAUDRATE)
+# @Instrument.connection(port=PORT, baudrate=BAUDRATE)
 async def Measure(protocol, operation: int = 1):
     """
         `Performs measurement or cancels measurement in progress.`
@@ -27,7 +27,7 @@ async def Measure(protocol, operation: int = 1):
         measurement_time: str
         complete: int
 
-    input_byte: bytes = b'MEAS,' + bytes([operation])
+    input_byte: bytes = b'MEAS,' + bytes(str(operation), 'utf-8')
 
     await Instrument.Write(protocol, input_byte)
 
@@ -36,7 +36,7 @@ async def Measure(protocol, operation: int = 1):
 
     return MeasureData(measurement_time, complete)
 
-@Instrument.connection(port=PORT, baudrate=BAUDRATE)
+# @Instrument.connection(port=PORT, baudrate=BAUDRATE)
 async def MeasuringSwitchEnable(protocol, operation: int = 1) -> None:
     """
        `Enables/disables the measuring button in remote mode.`
@@ -44,22 +44,22 @@ async def MeasuringSwitchEnable(protocol, operation: int = 1) -> None:
         :param `protocol`: The protocol object used for communication.
         :param `operation`:
 
-            - **0** - Enable.
+            - **0** - Disable.
 
-            - **1** - Disable.
+            - **1** - Enable.
 
         :rtype: None
         :return: None
         
     """
 
-    input_byte: bytes = b'MSWE,' + bytes([operation])
+    input_byte: bytes = b'MSWE,' + bytes(str(operation), 'utf-8')
 
     await Instrument.Write(protocol, input_byte)
 
-    _: str = Instrument.Read()
+    _: str = await Instrument.Read(protocol)
 
-@Instrument.connection(port=PORT, baudrate=BAUDRATE)
+# @Instrument.connection(port=PORT, baudrate=BAUDRATE)
 async def MeasurementDataRead(protocol, data_mode: int, data_format: int, data_block_number_to_read: int):
     """
         `Reads measurement data from instrument.`
@@ -68,20 +68,22 @@ async def MeasurementDataRead(protocol, data_mode: int, data_format: int, data_b
         :param `data format`:
         :param `data block number to read`: 
 
+        :rtype `(response, code, info)`
+
     """
     
     input_byte: bytes = b'MEDR,' \
-        + bytes([data_mode]) \
-        + bytes([data_format]) \
-        + bytes([data_block_number_to_read])
+        + bytes(str(data_mode), 'utf-8') + b',' \
+        + bytes(str(data_format), 'utf-8') + b',' \
+        + bytes(str(data_block_number_to_read), 'utf-8')
 
-    await Instrument.Write(input_byte) 
+    await Instrument.Write(protocol, input_byte) 
 
-    measurement_data = await Instrument.Read()
+    measurement_data = await Instrument.Read(protocol)
 
     return measurement_data
 
-@Instrument.connection(port=PORT, baudrate=BAUDRATE)
+# @Instrument.connection(port=PORT, baudrate=BAUDRATE)
 async def SpectralIrradianceData(protocol, block_number: int):
     """
         `Reads spectral irradiance data from the instrument.`
@@ -102,7 +104,7 @@ async def SpectralIrradianceData(protocol, block_number: int):
     spectral_data = SpectralData(data=[])
 
     for block in range(1, 5):
-        input_byte: bytes = b'MEDR,1,0,' + bytes([block])
+        input_byte: bytes = b'MEDR,1,0,' + bytes(str(block), 'utf-8')
         
         await Instrument.Write(protocol, input_byte)
         block_data = await Instrument.Read(protocol)
@@ -111,7 +113,7 @@ async def SpectralIrradianceData(protocol, block_number: int):
 
     return spectral_data
 
-@Instrument.connection(port=PORT, baudrate=BAUDRATE)
+# @Instrument.connection(port=PORT, baudrate=BAUDRATE)
 async def ColorimetricData(protocol, block_number: int):
     """
         Reads colorimetric data from the instrument.
@@ -131,3 +133,26 @@ async def ColorimetricData(protocol, block_number: int):
     block_data = await Instrument.Read(protocol)
 
     return block_data
+
+# @Instrument.connection(port=PORT, baudrate=BAUDRATE)
+async def RemoteModeSelect(protocol, operation: int = 1) -> None:
+    """
+       `Selects the remote mode setting: On or Off.`
+        
+        :param `protocol`: The protocol object used for communication.
+        :param `operation`:
+
+            - **0** - Off.
+
+            - **1** - On.
+
+        :rtype: None
+        :return: None
+        
+    """
+
+    input_byte: bytes = b'RMTS,' + bytes(str(operation), 'utf-8')
+
+    await Instrument.Write(protocol, input_byte)
+
+    _: str = await Instrument.Read(protocol)
