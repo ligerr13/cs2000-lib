@@ -4,13 +4,16 @@ from src.commands import Measure
 import random
 
 
-@CS2000.connection(port="COM3")
+
+# @CS2000.connection(port='COM4', baudrate=9600)
+@CS2000.connection(port='dev/cu.usbmodem12345678901', baudrate=9600)
 async def simulateApp(protocol):
     await CS2000.Write(protocol, b"MEAS,1")
     measurement_time = await CS2000.Read(protocol)
     is_finished = await CS2000.Read(protocol)
 
-@CS2000.connection(port="COM4")
+# # @CS2000.connection(port='COM3', baudrate=9600)
+@CS2000.connection(port='dev/cu.usbmodem12345678902', baudrate=9600)
 async def simulateCS2000(protocol):
     await CS2000.Read(protocol)
     await asyncio.sleep(0.1)
@@ -51,4 +54,4 @@ def error_handler(e):
     print(f"An Error has happened: {e}")
     print("Shutting down...")
 
-run_test(Measure, error_handler)
+run_test(no_instrument_test, error_handler)

@@ -1,1 +1,4 @@
 pyserial
+pandas
+numpy
+pyserial-asyncio
