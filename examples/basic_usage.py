@@ -25,11 +25,11 @@ async def _measure_read_store(protocol):
     data = await Measure(protocol, operation=1)
 
     # spectral_irradiance_data_380nm_to_479nm = await MeasurementDataRead(protocol=protocol, data_mode=1, data_format=0, data_block_number_to_read=1)
-    await CS2000.Write(protocol, b'MEDR,1,0,1')
+    CS2000.Write(protocol, b'MEDR,1,0,1')
     spectral_irradiance_data_380nm_to_479nm = await CS2000.Read(protocol)
 
     # # spectral_irradiance_data_480nm_to_579nm = await MeasurementDataRead(protocol=protocol, data_mode=1, data_format=0, data_block_number_to_read=2)
-    await CS2000.Write(protocol, b'MEDR,1,0,2')
+    CS2000.Write(protocol, b'MEDR,1,0,2')
     spectral_irradiance_data_480nm_to_579nm = await CS2000.Read(protocol)
 
     # # spectral_irradiance_data_580nm_to_679nm = await MeasurementDataRead(protocol=protocol, data_mode=1, data_format=0, data_block_number_to_read=3)

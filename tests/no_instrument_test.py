@@ -3,8 +3,6 @@ from src.instrument import Instrument as CS2000
 from src.commands import Measure
 import random
 
-
-
 # @CS2000.connection(port='COM4', baudrate=9600)
 @CS2000.connection(port='dev/cu.usbmodem12345678901', baudrate=9600)
 async def simulateApp(protocol):
