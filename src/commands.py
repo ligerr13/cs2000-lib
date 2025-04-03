@@ -29,7 +29,7 @@ async def Measure(protocol, operation: int = 1):
 
     input_byte: bytes = b'MEAS,' + bytes(str(operation), 'utf-8')
 
-    await Instrument.Write(protocol, input_byte)
+    Instrument.Write(protocol, input_byte)
 
     measurement_time: str = await Instrument.Read(protocol)
     complete: str = await Instrument.Read(protocol)

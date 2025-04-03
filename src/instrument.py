@@ -7,7 +7,6 @@ from dataclasses import dataclass
 import json
 import serial_asyncio
 
-
 logging.basicConfig(level=logging.DEBUG)
 
 class Delimiter(enum.Enum):
@@ -15,14 +14,12 @@ class Delimiter(enum.Enum):
     CR = b'\r'
     LF = b'\n'
 
-        
-
 class SerialProtocol(asyncio.Protocol):
     def __init__(self):
         self._ready_event = asyncio.Event()
         self._rbuffer = asyncio.Queue()
         self._transport = None
-        self._timeout = 10.0
+        self._timeout = 20.0
         self._delimiter = Delimiter.CRLF.value
         self._partial_data = ''
 
@@ -39,13 +36,14 @@ class SerialProtocol(asyncio.Protocol):
     def data_received(self, data: bytes) -> None:
         """Handle incoming data, collect until delimiter is received."""
         try:
-            self._partial_data += data
-            
-            while self._delimiter in self._partial_data:
-                line, self._partial_data = self._partial_data.split(self._delimiter, 1)
+            self._partial_data += data.decode('utf-8', errors='ignore')
+            delimiter_str = self._delimiter.decode('utf-8')
+
+            while delimiter_str in self._partial_data:
+                line, self._partial_data = self._partial_data.split(delimiter_str, 1)
                 
                 try:
-                    line_decoded = line.decode('utf-8').strip()
+                    line_decoded = line.strip()
                     
                     if line_decoded:
                         self._rbuffer.put_nowait(line_decoded)
@@ -60,7 +58,7 @@ class SerialProtocol(asyncio.Protocol):
         except UnicodeDecodeError as e:
             logging.error(f"Failed to decode data: {e}")
 
-    async def write_command(self, command: bytes, delimiter: Delimiter = Delimiter.CRLF) -> None:
+    def write_command(self, command: bytes, delimiter: Delimiter = Delimiter.CRLF) -> None:
         """Write command to the instrument as a byte string."""
         if not isinstance(command, (bytes)):
             logging.error("Data must be of type bytes")
@@ -71,7 +69,7 @@ class SerialProtocol(asyncio.Protocol):
             return None
         
         try:
-            await self.transport.write(command + delimiter.value)
+            self.transport.write(command + delimiter.value)
             logging.debug(f">> Sending data: {command} + {delimiter.value}")
         
         except Exception as e:
@@ -121,10 +119,10 @@ class Instrument:
         "Pe","X10", "Y10", "Z10", "x10", "y10", "u'10", "v'10", "T10", "delta uv10", "lambda d10", "Pe10"
     ]
     
-    async def Write(protocol: SerialProtocol, command: bytes):
+    def Write(protocol: SerialProtocol, command: bytes):
         """Write to the instrument."""
         if protocol and command:
-            await protocol.write_command(command)
+            protocol.write_command(command)
 
     async def Read(protocol: SerialProtocol) -> ReadData:
         """Read response and check for errors."""
