@@ -55,7 +55,7 @@ async def MeasuringSwitchEnable(protocol, operation: int = 1) -> None:
 
     input_byte: bytes = b'MSWE,' + bytes(str(operation), 'utf-8')
 
-    await Instrument.Write(protocol, input_byte)
+    Instrument.Write(protocol, input_byte)
 
     _: str = await Instrument.Read(protocol)
 
@@ -77,7 +77,7 @@ async def MeasurementDataRead(protocol, data_mode: int, data_format: int, data_b
         + bytes(str(data_format), 'utf-8') + b',' \
         + bytes(str(data_block_number_to_read), 'utf-8')
 
-    await Instrument.Write(protocol, input_byte) 
+    Instrument.Write(protocol, input_byte) 
 
     measurement_data = await Instrument.Read(protocol)
 
@@ -106,7 +106,7 @@ async def SpectralIrradianceData(protocol, block_number: int):
     for block in range(1, 5):
         input_byte: bytes = b'MEDR,1,0,' + bytes(str(block), 'utf-8')
         
-        await Instrument.Write(protocol, input_byte)
+        Instrument.Write(protocol, input_byte)
         block_data = await Instrument.Read(protocol)
 
         spectral_data.data.append(block_data)
@@ -129,7 +129,7 @@ async def ColorimetricData(protocol, block_number: int):
 
     input_byte: bytes = b'MEDR,2,0,' + bytes(str(block_number), 'utf-8')
         
-    await Instrument.Write(protocol, input_byte)
+    Instrument.Write(protocol, input_byte)
     block_data = await Instrument.Read(protocol)
 
     return block_data
@@ -153,6 +153,6 @@ async def RemoteModeSelect(protocol, operation: int = 1) -> None:
 
     input_byte: bytes = b'RMTS,' + bytes(str(operation), 'utf-8')
 
-    await Instrument.Write(protocol, input_byte)
+    Instrument.Write(protocol, input_byte)
 
     _: str = await Instrument.Read(protocol)
