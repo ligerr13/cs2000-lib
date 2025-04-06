@@ -1,28 +1,38 @@
 import asyncio
+import logging
+import unittest
+from unittest import IsolatedAsyncioTestCase 
 from src.instrument import Instrument as CS2000
-from src.commands import Measure
-import random
+from src.commands import Measure, RemoteModeSelect
+
+logging.basicConfig(level=logging.DEBUG)
 
 @CS2000.connection(port='COM4', baudrate=9600)
 async def _test_1(protocol):
+    """
+        Test to perform the measurement.
+    """
+    await RemoteModeSelect(protocol, operation=1)
+
     data = await Measure(protocol)
 
-    CS2000.Write(protocol, b'MEDR,1,0,1')
-    spectral_irradiance_data_380nm_to_479nm = await CS2000.Read(protocol)
+    return data
 
-    CS2000.Write(protocol, b'MEDR,1,0,2')
-    spectral_irradiance_data_480nm_to_579nm = await CS2000.Read(protocol)
+class Testing(IsolatedAsyncioTestCase):
+    async def test_measure(self):
+        try:
+            result = await _test_1()
 
-    print(len(spectral_irradiance_data_480nm_to_579nm.response) == 8)
+            self.assertIsNotNone(result, "Result should not be None")
 
-def run_test(program, error_handler):
-    try:
-        asyncio.run(program())
-    except Exception as e:
-        error_handler(e)
+            self.assertTrue(hasattr(result, 'complete'), "Result should have 'complete' attribute")
+            self.assertEqual(result.complete.response, "OK00", f"Measurement did not complete successfully. Received: {result.complete.response}")
 
-def error_handler(e):
-    print(f"An Error has happened: {e}")
-    print("Shutting down...")
+            logging.debug("Measurement completed successfully.")
+            
+        except Exception as e:
+            logging.error(f"Test failed due to exception: {e}")
+            self.fail(f"Test failed due to exception: {e}")
 
-run_test(_test_1, error_handler)
+if __name__ == '__main__':
+    unittest.main()
