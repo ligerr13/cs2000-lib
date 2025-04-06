@@ -19,7 +19,7 @@ class SerialProtocol(asyncio.Protocol):
         self._ready_event = asyncio.Event()
         self._rbuffer = asyncio.Queue()
         self._transport = None
-        self._timeout = 20.0
+        self._timeout = 10.0
         self._delimiter = Delimiter.CRLF.value
         self._partial_data = ''
 
@@ -29,7 +29,7 @@ class SerialProtocol(asyncio.Protocol):
 
     def connection_made(self, transport) -> None:
         """called when  the serial connection is established."""
-        self.transport = transport
+        self._transport = transport
         logging.debug("Connection: connected.")
         self._ready_event.set()
 
@@ -64,12 +64,12 @@ class SerialProtocol(asyncio.Protocol):
             logging.error("Data must be of type bytes")
             return None
                 
-        if self.transport is None or self.transport.is_closing():
+        if self._transport is None or self._transport.is_closing():
             logging.warning("Connection: lost.")
             return None
         
         try:
-            self.transport.write(command + delimiter.value)
+            self._transport.write(command + delimiter.value)
             logging.debug(f">> Sending data: {command} + {delimiter.value}")
         
         except Exception as e:
@@ -78,7 +78,7 @@ class SerialProtocol(asyncio.Protocol):
 
     async def read_until_delimiter(self) -> tuple[str, Union[list[str], None]]:
         """Read a line from the buffer with a timeout."""
-        if self.transport is None or self.transport.is_closing():
+        if self._transport is None or self._transport.is_closing():
             logging.error("Connection: lost.")
             return 'ER100', None
 
@@ -93,14 +93,14 @@ class SerialProtocol(asyncio.Protocol):
 
         except asyncio.TimeoutError:
             logging.error("Timeout while waiting for response.")
-            if self.transport:
-                self.transport.close()
+            if self._transport:
+                self._transport.close()
             return 'ER101', None
         
         except Exception as e:
             logging.error(f"Unexpected error while reading: {e}")
-            if self.transport:
-                self.transport.close()
+            if self._transport:
+                self._transport.close()
             return 'ER99', None
 
 
@@ -131,7 +131,6 @@ class Instrument:
         code, info = Instrument.check_error_code(err)
 
         if code != 0:
-            print(f"Error: {info}")
             return Instrument.ReadData(None, code, info)
 
         return Instrument.ReadData(response, code, info)
